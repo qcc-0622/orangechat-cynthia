@@ -43,6 +43,29 @@ jobs:
         working-directory: web-ui
         run: pnpm install --frozen-lockfile
 
+      # debug 变体固定读项目内置的 app/debug.keystore, 但 *.keystore 被 .gitignore 排除,
+      # 仓库里没有这个文件 (本地构建有, 所以本地不报错), CI 里不补上就会:app:validateSigningDebug 失败。
+      # 用 cache 保存生成的那一份, 保证各次 CI 构建签名一致, 避免互相覆盖安装时报 -99。
+      - name: Restore CI debug keystore
+        uses: actions/cache@v4
+        with:
+          path: app/debug.keystore
+          key: ci-debug-keystore-v1
+
+      - name: Ensure debug keystore
+        run: |
+          if [ ! -f app/debug.keystore ]; then
+            echo "app/debug.keystore 不存在, 生成 CI 专用 debug keystore"
+            keytool -genkeypair -v \
+              -keystore app/debug.keystore \
+              -storepass android -keypass android \
+              -alias androiddebugkey \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -dname "CN=Android Debug,O=Android,C=US"
+          else
+            echo "复用 cache 中的 app/debug.keystore"
+          fi
+
       - name: Gradle cache
         uses: actions/cache@v4
         with:
@@ -51,7 +74,6 @@ jobs:
             ~/.gradle/wrapper
           key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
 
-      # debug 变体用自动生成的 debug keystore, 不需要 KEY_BASE64 / SIGNING_CONFIG 等 secrets
       - name: Gradle Build (debug)
         run: |
           chmod +x gradlew
