@@ -107,10 +107,20 @@ class VolcengineASRController(
 
         val request = Request.Builder()
             .url(provider.websocketUrl)
-            .addHeader("X-Api-Key", provider.apiKey)
             .addHeader("X-Api-Resource-Id", provider.resourceId)
+            .addHeader("X-Api-Connect-Id", Uuid.random().toString())
             .addHeader("X-Api-Request-Id", Uuid.random().toString())
             .addHeader("X-Api-Sequence", "-1")
+            .apply {
+                if (provider.appKey.isNotBlank() && provider.accessKey.isNotBlank()) {
+                    // 旧版控制台: App ID + Access Token
+                    addHeader("X-Api-App-Key", provider.appKey.trim())
+                    addHeader("X-Api-Access-Key", provider.accessKey.trim())
+                } else {
+                    // 新版控制台: 单个 API Key (豆包流式语音识别 2.0)
+                    addHeader("X-Api-Key", provider.apiKey.trim())
+                }
+            }
             .build()
 
         webSocket = httpClient.newWebSocket(request, object : WebSocketListener() {
@@ -135,9 +145,10 @@ class VolcengineASRController(
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                Log.e(TAG, "Volcengine ASR websocket failed", t)
+                val detail = describeHandshakeFailure(response, t)
+                Log.e(TAG, "Volcengine ASR websocket failed: $detail", t)
                 releaseRecorder()
-                handleDisconnect(t.message ?: "ASR websocket failed")
+                handleDisconnect(detail)
             }
 
             override fun onClosed(webSocket: WebSocket, code: Int, reason: String) {
@@ -146,6 +157,22 @@ class VolcengineASRController(
                 handleDisconnect("ASR 连接已断开")
             }
         })
+    }
+
+    /**
+     * 握手失败时 OkHttp 只给出 "Expected HTTP 101 response but was '403 Forbidden'", 真正的
+     * 原因 (资源未开通 / 凭证不匹配) 在响应体和 X-Tt-Logid 里。把这两样拼进错误信息,
+     * 用户才能在设置页直接看到 403 的具体理由, 而不是一句无解的 "ASR websocket failed"。
+     */
+    private fun describeHandshakeFailure(response: Response?, t: Throwable): String {
+        if (response == null) return t.message ?: "ASR websocket failed"
+        val logId = response.header("X-Tt-Logid").orEmpty()
+        val body = runCatching { response.body?.string() }.getOrNull().orEmpty().trim()
+        return buildString {
+            append("HTTP ${response.code} ${response.message}")
+            if (body.isNotEmpty()) append(": $body")
+            if (logId.isNotEmpty()) append(" (X-Tt-Logid=$logId)")
+        }
     }
 
     /**

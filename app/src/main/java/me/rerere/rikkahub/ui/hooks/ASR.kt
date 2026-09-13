@@ -23,6 +23,7 @@ import kotlinx.coroutines.flow.first
 import me.rerere.asr.ASRController
 import me.rerere.asr.ASRProviderSetting
 import me.rerere.asr.ASRState
+import me.rerere.asr.providers.HunyuanASRController
 import me.rerere.asr.providers.MiMoASRController
 import me.rerere.asr.providers.OpenAIRealtimeASRController
 import me.rerere.asr.providers.SiliconFlowASRController
@@ -200,8 +201,12 @@ internal class CustomAsrStateImpl(
                 }
  
                 is ASRProviderSetting.Volcengine -> {
-                    if (provider.apiKey.isBlank()) {
-                        Log.w(ASR_TAG, "createController: Volcengine apiKey 为空")
+                    // 新版控制台填 apiKey, 旧版控制台填 appKey + accessKey, 至少有一组才能连上
+                    val hasApiKey = provider.apiKey.isNotBlank()
+                    val hasLegacyKeys =
+                        provider.appKey.isNotBlank() && provider.accessKey.isNotBlank()
+                    if (!hasApiKey && !hasLegacyKeys) {
+                        Log.w(ASR_TAG, "createController: Volcengine 未配置 API Key, 也未配置 App ID + Access Token")
                         return null
                     }
                     VolcengineASRController(context, httpClient, provider)
@@ -213,6 +218,14 @@ internal class CustomAsrStateImpl(
                         return null
                     }
                     MiMoASRController(context, httpClient, provider)
+                }
+
+                is ASRProviderSetting.Hunyuan -> {
+                    if (provider.apiKey.isBlank()) {
+                        Log.w(ASR_TAG, "createController: Hunyuan apiKey 为空")
+                        return null
+                    }
+                    HunyuanASRController(context, httpClient, provider)
                 }
             }
         } catch (e: Exception) {

@@ -573,6 +573,14 @@ private fun AddASRProviderButton(onAdd: (ASRProviderSetting) -> Unit) {
                     showBottomSheet = true
                 }
             )
+            DropdownMenuItem(
+                text = { Text("腾讯混元 (Hy-ASR)") },
+                onClick = {
+                    currentProvider = ASRProviderSetting.Hunyuan()
+                    showTypeMenu = false
+                    showBottomSheet = true
+                }
+            )
         }
     }
 
@@ -837,6 +845,7 @@ private fun ASRProviderItem(
                             is ASRProviderSetting.SiliconFlow -> "SiliconFlow"
                             is ASRProviderSetting.Volcengine -> "Volcengine"
                             is ASRProviderSetting.MiMo -> "MiMo"
+                            is ASRProviderSetting.Hunyuan -> "腾讯混元 (Hy-ASR)"
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
