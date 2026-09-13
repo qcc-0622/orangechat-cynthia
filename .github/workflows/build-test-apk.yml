@@ -1,0 +1,42 @@
+name: Build Test APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'fix/**'
+      - 'ci/**'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+
+      # debug 变体用自动生成的 debug keystore, 不需要 KEY_BASE64 / SIGNING_CONFIG 等 secrets
+      - name: Gradle Build (debug)
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        if: success()
+        with:
+          name: apk-debug
+          path: app/build/outputs/apk/debug/*.apk
