@@ -14,11 +14,34 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # material3 模块把 submodule 的源码加进 sourceSet, 缺了会编译失败。
+      # 只初始化这一个: mnn 用的是 SSH 地址, 且 ai 模块的 CMake 已注释掉, 构建不需要它。
+      - name: Init submodule
+        run: git submodule update --init material3/material-color-utilities
+
       - name: Set up JDK
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
+
+      - name: Set up pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+          run_install: false
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+          cache-dependency-path: web-ui/pnpm-lock.yaml
+
+      # :web:preBuild 依赖 buildWebUi (即 web-ui 的 pnpm run build), 必须先装依赖
+      - name: Install web-ui deps
+        working-directory: web-ui
+        run: pnpm install --frozen-lockfile
 
       - name: Gradle cache
         uses: actions/cache@v4
